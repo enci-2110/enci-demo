@@ -1,0 +1,52 @@
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+from sklearn.model_selection import GridSearchCV
+import xgboost as xgb
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.model_selection import StratifiedKFold
+# Load data and preprocess
+data = pd.read_csv('/kaggle/input/city-u-10-c-fun-ai-final-project/cityu10c_train_dataset.csv')
+# Load the test dataset and preprocess
+test_data = pd.read_csv('/kaggle/input/city-u-10-c-fun-ai-final-project/cityu10c_test_dataset.csv')
+# Check if there is any NaN data
+data.isnull().sum()
+categorical_columns = ['EmploymentStatus', 'EducationLevel', 'MaritalStatus', 'HomeOwnershipStatus', 'LoanPurpose', 'BankruptcyHistory']
+for col in categorical_columns:
+    le = LabelEncoder()
+    data[col] = le.fit_transform(data[col])
+data['ApplicationDate'] = pd.to_datetime(data['ApplicationDate'], errors='coerce')
+data['ApplicationYear'] = data['ApplicationDate'].dt.year
+data['ApplicationMonth'] = data['ApplicationDate'].dt.month
+data.drop('ApplicationDate', axis=1, inplace=True)
+data_hist_plot = data.hist(figsize=(20, 20), color="#5F9EA0")
+X = data.drop('LoanApproved', axis=1)
+y = data['LoanApproved']
+# Scale numerical features
+scaler = StandardScaler()
+X = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
+# Create and train an XGBoost model
+xgb_model = xgb.XGBClassifier(objective='binary:logistic', eval_metric='logloss')
+# Hyperparameter tuning using GridSearchCV with StratifiedKFold
+param_grid = {
+    'max_depth': [3, 5, 7],
+    'learning_rate': [0.01, 0.05, 0.1],
+    'n_estimators': [100, 200],
+    'subsample': [0.8, 1.0],
+    'colsample_bytree': [0.8, 1.0],
+    'gamma': [0, 1]
+}
+grid_search = GridSearchCV(xgb_model, param_grid, cv=StratifiedKFold(n_splits=5), scoring='f1', verbose=1)
+grid_search.fit(X, y)
+# Best model from GridSearchCV
+best_model = grid_search.best_estimator_
+# Evaluate the best model
+print(f"Best F1 Score: {grid_search.best_score_}")
